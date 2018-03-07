@@ -113,11 +113,8 @@ func GetCategory(s string) (category Category, err error) {
 func GetCategories() ([]Category, error) {
 	var categories []Category
 	res := statsDB.Order("name asc").Find(&categories)
-	if res.Error != nil {
-		return "", res.Error
-	}
 
-	return categories, nil
+	return categories, res.Error
 }
 
 func PrintCategories() (string, error) {

@@ -76,12 +76,26 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	switch fields[0] {
 	case "print":
-		stats, err := PrintStats(strings.Replace(message, "print ", "", 1))
-		if err != nil {
+		c := strings.TrimSpace(strings.Replace(message, "print", "", 1))
+		if c == "" || c == "all" {
+			categories, err := GetCategories()
+			if err != nil {
+				log.Println(err.Error())
+			}
+			for _, category := range categories {
+				stats, err := PrintStats(category.Name)
+					if err != nil {
 			_, _ = s.ChannelMessageSend(m.ChannelID, err.Error())
 		}
-
-		_, _ = s.ChannelMessageSend(m.ChannelID, stats)
+				_, _ = s.ChannelMessageSend(m.ChannelID, stats)
+			}
+		} else {
+			stats, err := PrintStats(c)
+				if err != nil {
+			_, _ = s.ChannelMessageSend(m.ChannelID, err.Error())
+		}
+			_, _ = s.ChannelMessageSend(m.ChannelID, stats)
+		}
 	//Print all stats
 	case "add":
 		err := AddStat(m.Author, strings.Replace(message, "add ", "", 1))
