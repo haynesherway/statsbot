@@ -10,32 +10,31 @@ import (
 
 var (
 	statsDB *gorm.DB
-
 )
 
 type Category struct {
-	ID          int           `gorm:"AUTO_INCREMENT" gorm:"primary_key"`
-	Name        string        `gorm:"size:50;unique;index"`
-	FullName    string        `gorm:"size:50"`
-	Min         int `gorm:"DEFAULT:0`
-	Max         int `gorm:"DEFAULT:100000`
-	Order       int           `gorm:"DEFAULT:0"`
-	OptionValue bool          `gorm:"DEFAULT:false"`
+	ID          int    `gorm:"AUTO_INCREMENT" gorm:"primary_key"`
+	Name        string `gorm:"size:25;unique;index"`
+	FullName    string `gorm:"size:25"`
+	Min         int    `gorm:"DEFAULT:0`
+	Max         int    `gorm:"DEFAULT:100000`
+	Order       int    `gorm:"DEFAULT:0"`
+	OptionValue bool   `gorm:"DEFAULT:false"`
 }
 
 type User struct {
-	ID    int `gorm:"primary_key"`
-	DiscordID string `gorm:"unique;index"`
-	Name  string `gorm:"index"`
-	Admin bool   `gorm:DEFAULT:false"`
+	ID        int    `gorm:"primary_key"`
+	DiscordID string `gorm:"size:20;unique;index"`
+	Name      string `gorm:"size:20;index"`
+	Admin     bool   `gorm:DEFAULT:false"`
 }
 
 type Stat struct {
 	gorm.Model
 	Category      Category
-	CategoryID    int      `gorm:"unique_index:user_stat"`
+	CategoryID    int `gorm:"unique_index:user_stat"`
 	User          User
-	UserID        int      `gorm:"unique_index:user_stat" sql:"type:bigint REFERENCES user(id)"`
+	UserID        int `gorm:"unique_index:user_stat" sql:"type:bigint REFERENCES user(id)"`
 	Value         int
 	OptionalValue string `gorm:"DEFAULT:NULL"`
 	Verified      bool   `gorm:"DEFAULT:true"`
@@ -63,9 +62,10 @@ var admins = []User{
 }
 
 func InitDB() (err error) {
-	username := "kaylahaynesx3"
+	username := "statsuser"
+	password := "statspass"
 
-	statsDB, err = gorm.Open("mysql", fmt.Sprintf("%s@/%s?charset=utf8&parseTime=True", username, "stats"))
+	statsDB, err = gorm.Open("mysql", fmt.Sprintf("%s:%s@/%s?charset=utf8&parseTime=True", username, password, "stats"))
 	if err != nil {
 		return err
 	}
@@ -84,22 +84,18 @@ func createDatabase() (err error) {
 	log.Println("Creating tables...")
 	statsDB.AutoMigrate(&Category{}, &User{}, &Stat{})
 	/*statsDB.CreateTable(&Category{})
-
 	for _, category := range categories {
 		statsDB.Create(&category)
 	}
-
 	log.Println("Creating User table...")
 	statsDB.CreateTable(&User{})
-
 	for _, user := range admins {
 		statsDB.Create(&user)
 	}
-
 	log.Println("Creating Stat table...")
 	statsDB.CreateTable(&Stat{})
 	*/
-	
+
 	return nil
 }
 
@@ -114,19 +110,29 @@ func GetCategory(s string) (category Category, err error) {
 	return category, res.Error
 }
 
+func GetCategories() ([]Category, error) {
+	var categories []Category
+	res := statsDB.Order("name asc").Find(&categories)
+	if res.Error != nil {
+		return "", res.Error
+	}
+
+	return categories, nil
+}
+
 func PrintCategories() (string, error) {
-    var categories []Category
-    res := statsDB.Order("name asc").Find(&categories)
-    if res.Error != nil {
-        return "", res.Error
-    }
-    
-    message := "Current Categories:\n"
-    for _, cat := range categories {
-        message += cat.FullName + " (" + cat.Name + ")" + "\n"
-    }
-    
-    return message, nil
+	var categories []Category
+	res := statsDB.Order("name asc").Find(&categories)
+	if res.Error != nil {
+		return "", res.Error
+	}
+
+	message := "Current Categories:\n"
+	for _, cat := range categories {
+		message += cat.FullName + " (" + cat.Name + ")" + "\n"
+	}
+
+	return message, nil
 }
 
 func (c *Category) Validate(value int) bool {
@@ -152,27 +158,27 @@ func (c Category) AddStat(u User, v int) error {
 }
 
 func (c *Category) GetAll() (stats []Stat, err error) {
-    res := statsDB.Model(&c).Preload("User").Order("value desc").Related(&stats)
-    
-    return stats, res.Error
+	res := statsDB.Model(&c).Preload("User").Order("value desc").Related(&stats)
+
+	return stats, res.Error
 }
 
 func (c *Category) PrintStats() (string, error) {
-    var message string
-    
-    stats, err := c.GetAll()
-    if err != nil {
-        return message, err
-    }
-    
-    rank := 1
-    message = c.FullName + "\n"
-    for _, stat := range stats {
-        message += fmt.Sprintf("%d. %s %d\n", rank, stat.User.Name, stat.Value)  
-        rank++
-    }
-    
-    return message, err
+	var message string
+
+	stats, err := c.GetAll()
+	if err != nil {
+		return message, err
+	}
+
+	rank := 1
+	message = c.FullName + "\n"
+	for _, stat := range stats {
+		message += fmt.Sprintf("%d. %s %d\n", rank, stat.User.Name, stat.Value)
+		rank++
+	}
+
+	return message, err
 }
 
 func (User) TableName() string {
@@ -180,24 +186,24 @@ func (User) TableName() string {
 }
 
 func (u *User) Insert() error {
-    res := statsDB.Where("discord_id = ?", u.DiscordID).Assign(User{Name: u.Name}).FirstOrCreate(&u)
+	res := statsDB.Where("discord_id = ?", u.DiscordID).Assign(User{Name: u.Name}).FirstOrCreate(&u)
 
-    return res.Error
+	return res.Error
 }
 
 func PrintUsers() (string, error) {
-    var users []User
-    res := statsDB.Order("name asc").Find(&users)
-    if res.Error != nil {
-        return "", res.Error
-    }
-    
-    message := "Current Stats Users:\n"
-    for _, user := range users {
-        message += user.Name + "\n"
-    }
-    
-    return message, nil
+	var users []User
+	res := statsDB.Order("name asc").Find(&users)
+	if res.Error != nil {
+		return "", res.Error
+	}
+
+	message := "Current Stats Users:\n"
+	for _, user := range users {
+		message += user.Name + "\n"
+	}
+
+	return message, nil
 }
 
 func GetUser(s string) (user User, err error) {
@@ -225,8 +231,8 @@ func NewStat(c Category, u User, v int) error {
 	fmt.Println(stat)
 	res := statsDB.Where(Stat{CategoryID: c.ID, UserID: u.ID}).Assign(Stat{Value: v}).FirstOrCreate(&stat)
 	if res.Error != nil {
-	    log.Printf("Error create new stat: %+v\n", res.Error)
-	    return res.Error
+		log.Printf("Error create new stat: %+v\n", res.Error)
+		return res.Error
 	}
 	return nil
 }

@@ -66,7 +66,7 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if len(message) == 0 {
 		return
 	}
-	
+
 	fmt.Println(message)
 
 	fields := strings.Split(message, " ")
@@ -80,7 +80,7 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 		if err != nil {
 			_, _ = s.ChannelMessageSend(m.ChannelID, err.Error())
 		}
-		
+
 		_, _ = s.ChannelMessageSend(m.ChannelID, stats)
 	//Print all stats
 	case "add":
@@ -91,23 +91,28 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 			_, _ = s.ChannelMessageSend(m.ChannelID, "Successfully added stat!")
 		}
 	case "user":
-		message := strings.Replace(message, "user ", "", 1)
+		message = strings.TrimSpace(strings.Replace(message, "user", "", 1))
 		fields := strings.Split(message, " ")
 		var user *discordgo.User
 		var name string
 		var err error
+
+		fmt.Println(fields)
 		if len(fields) > 0 {
+			if !CheckAdmin(m.Author.ID) {
+				return
+			}
 			if strings.Contains(message, "<@") {
 				user = m.Mentions[0]
 			} else {
 				username := fields[0]
-				
+
 				channel, err := s.Channel(m.ChannelID)
 				guild, err := s.Guild(channel.GuildID)
 				if err != nil {
 					break
-				}	
-				
+				}
+
 				for _, mem := range guild.Members {
 					if mem.Nick == username {
 						user = mem.User
@@ -117,37 +122,42 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 					}
 				}
 			}
-			
+
 			if len(fields) == 2 {
 				name = fields[1]
 			}
-			
-			AddUser(user, name)
-			
+
+			if user != nil {
+				AddUser(user, name)
+			} else {
+				err = errors.New("User not found.")
+			}
+
 		} else {
-			err = errors.New("Command unrecognized.")
+			fmt.Println("Adding...")
+			AddUser(m.Author, "")
+			//err = errors.New("Command unrecognized.")
 		}
 		if err != nil {
 			_, _ = s.ChannelMessageSend(m.ChannelID, err.Error())
 		} else {
 			_, _ = s.ChannelMessageSend(m.ChannelID, "Successfully added user!")
 		}
-		case "users":
-			users, err := PrintUsers()
-			if err != nil {
-				_, _ = s.ChannelMessageSend(m.ChannelID, err.Error())
-			} else {
-				_, _ = s.ChannelMessageSend(m.ChannelID, users)
-			}
-		case "categories":
-			categories, err := PrintCategories()
-			if err != nil {
-				_, _ = s.ChannelMessageSend(m.ChannelID, err.Error())
-			} else {
-				_, _ = s.ChannelMessageSend(m.ChannelID, categories)
-			}
+	case "users":
+		users, err := PrintUsers()
+		if err != nil {
+			_, _ = s.ChannelMessageSend(m.ChannelID, err.Error())
+		} else {
+			_, _ = s.ChannelMessageSend(m.ChannelID, users)
+		}
+	case "categories":
+		categories, err := PrintCategories()
+		if err != nil {
+			_, _ = s.ChannelMessageSend(m.ChannelID, err.Error())
+		} else {
+			_, _ = s.ChannelMessageSend(m.ChannelID, categories)
+		}
 	}
-	
 
 	return
 
