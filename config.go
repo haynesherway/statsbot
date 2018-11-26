@@ -3,6 +3,7 @@ package statsbot
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"io/ioutil"
 	"log"
 	"path"
@@ -13,7 +14,8 @@ import (
 var (
 	Token     string
 	BotPrefix string
-	Server string
+	Server    string
+	test      bool
 
 	config *configStruct
 )
@@ -21,7 +23,7 @@ var (
 type configStruct struct {
 	Token     string `json:"Token"`
 	BotPrefix string `json:"BotPrefix"`
-	Server string `json:"Server"`
+	Server    string `json:"Server"`
 }
 
 // ReadConfig reads the config file and initializes values using those configs
@@ -48,5 +50,13 @@ func ReadConfig() error {
 	BotPrefix = config.BotPrefix
 	Server = config.Server
 
+	if test {
+		BotPrefix = "?"
+	}
 	return nil
+}
+
+func init() {
+	flag.BoolVar(&test, "t", false, "Run for testing")
+	flag.Parse()
 }

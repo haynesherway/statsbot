@@ -2,9 +2,11 @@ package statsbot
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -97,4 +99,79 @@ func PrintStats(msg string) (string, error) {
 
 	}
 		return "", nil
+}
+
+func PrintRanks(u User) (string, error) {
+	categories, err := GetCategories()
+	if err != nil {
+		return "", err
+	}
+
+	ranks := fmt.Sprintf("Ranks for %s:\n", u.Name)
+	for _, category := range categories {
+		r, err := category.GetUserRank(u.ID)
+		if err != nil {
+			return "", err
+		}
+		ranks += fmt.Sprintf("%s: %v\n", category.FullName, r)
+	}
+
+	return ranks, nil
+}
+
+func SendReminders(s *discordgo.Session, channelID string) error {
+	users, err := GetActiveUsers()
+	if err != nil {
+		return err
+	}
+
+	categories, err := GetCategories() 
+	if err != nil {
+		return err
+	}
+
+	now := time.Now()
+	cutoff := now.Add(-24 * time.Hour * 7)
+
+	for _, user := range users {
+		outdated := []string{}
+		checks := map[string]bool{}
+	
+		for _, cat := range categories {
+			checks[cat.FullName] = true
+		}
+		stats, err := user.GetStats()
+		if err != nil {
+			return err
+		}
+		for _, stat := range stats {
+			if cutoff.After(stat.UpdatedAt) {
+				outdated = append(outdated, stat.Category.FullName)
+			}
+			delete(checks, stat.Category.FullName)
+
+		}
+		missing := []string{}
+		for c, _ := range checks {
+			missing = append(missing, c)
+		}
+		if len(outdated) > 0 || len(missing) > 0 {
+			dUser, err := s.User(user.DiscordID)
+			var message string
+			if err != nil {
+				message = user.Name + ":\n"
+			} else {
+				message = dUser.Mention() + ":\n"
+			}
+			if len(outdated) > 0 {
+				message += "You need to update the following stats: " + strings.Join(outdated, ", ") + "\n"
+			}
+			if len(missing) > 0 {
+				message += "You are missing the following stats: " + strings.Join(missing, ", ") + "\n"
+			}
+			message += "Use `!stats help` for more information."
+			_, _ = s.ChannelMessageSend(channelID, message)
+		}
+	}
+	return nil
 }

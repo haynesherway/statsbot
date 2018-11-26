@@ -3,13 +3,16 @@ package statsbot
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 )
 
 var (
-	statsDB *gorm.DB
+	IMAGE_LOCATION = os.Getenv("GOPATH") + "/src/github.com/haynesherway/statsbot/img/"
+	IMAGE_URL      = "https://github.com/haynesherway/statsbot/blob/master/img/"
+	statsDB        *gorm.DB
 )
 
 type Category struct {
@@ -20,13 +23,15 @@ type Category struct {
 	Max         int    `gorm:"DEFAULT:100000`
 	Order       int    `gorm:"DEFAULT:0"`
 	OptionValue bool   `gorm:"DEFAULT:false"`
+	Image       string
 }
 
 type User struct {
 	ID        int    `gorm:"primary_key"`
 	DiscordID string `gorm:"size:20;unique;index"`
 	Name      string `gorm:"size:20;index"`
-	Admin     bool   `gorm:DEFAULT:false"`
+	Admin     bool   `gorm:"DEFAULT:false"`
+	Active    bool   `gorm:"DEFAULT:1"`
 }
 
 type Stat struct {
@@ -105,7 +110,9 @@ func (Category) TableName() string {
 
 func GetCategory(s string) (category Category, err error) {
 	res := statsDB.Where("name = ?", s).First(&category)
-	fmt.Println("Got %+v\n", category)
+	if category.Image == "" {
+		category.Image = IMAGE_URL + category.Name + ".png?raw=true"
+	}
 
 	return category, res.Error
 }
@@ -113,6 +120,12 @@ func GetCategory(s string) (category Category, err error) {
 func GetCategories() ([]Category, error) {
 	var categories []Category
 	res := statsDB.Order("name asc").Find(&categories)
+
+	for i, category := range categories {
+		if category.Image == "" {
+			categories[i].Image = IMAGE_URL + category.Name + ".png?raw=true"
+		}
+	}
 
 	return categories, res.Error
 }
@@ -124,7 +137,7 @@ func PrintCategories() (string, error) {
 		return "", res.Error
 	}
 
-	message := "Current Categories:\n"
+	message := ""
 	for _, cat := range categories {
 		message += cat.FullName + " (" + cat.Name + ")" + "\n"
 	}
@@ -160,6 +173,22 @@ func (c *Category) GetAll() (stats []Stat, err error) {
 	return stats, res.Error
 }
 
+func (c *Category) GetUserRank(uid int) (string, error) {
+	stats, err := c.GetAll()
+	if err != nil {
+		return "0", err
+	}
+
+	rank := 1
+	for _, stat := range stats {
+		if stat.UserID == uid {
+			return fmt.Sprintf("%v/%v", rank, len(stats)), nil
+		}
+		rank++
+	}
+	return fmt.Sprintf("%v/%v", "-", len(stats)), nil
+}
+
 func (c *Category) PrintStats() (string, error) {
 	var message string
 
@@ -169,9 +198,13 @@ func (c *Category) PrintStats() (string, error) {
 	}
 
 	rank := 1
-	message = c.FullName + "\n"
+	message = ""
 	for _, stat := range stats {
-		message += fmt.Sprintf("%d. %s %d\n", rank, stat.User.Name, stat.Value)
+		if !stat.User.Active {
+			message += fmt.Sprintf("%d. *%s %d*\n", rank, stat.User.Name, stat.Value)
+		} else {
+			message += fmt.Sprintf("%d. %s %d\n", rank, stat.User.Name, stat.Value)
+		}
 		rank++
 	}
 
@@ -188,6 +221,16 @@ func (u *User) Insert() error {
 	return res.Error
 }
 
+func (u *User) GetStats() ([]Stat, error) {
+	var stats []Stat
+	res := statsDB.Model(&u).Preload("Category").Related(&stats)
+	if res.Error != nil {
+		return stats, res.Error
+	}
+
+	return stats, nil
+}
+
 func PrintUsers() (string, error) {
 	var users []User
 	res := statsDB.Order("name asc").Find(&users)
@@ -195,12 +238,26 @@ func PrintUsers() (string, error) {
 		return "", res.Error
 	}
 
-	message := "Current Stats Users:\n"
+	message := ""
 	for _, user := range users {
-		message += user.Name + "\n"
+		if user.Active {
+			message += user.Name + "\n"
+		} else {
+			message += "*" + user.Name + "*\n"
+		}
 	}
 
 	return message, nil
+}
+
+func GetActiveUsers() ([]User, error) {
+	var users []User
+	res := statsDB.Where("active=1").Find(&users)
+	if res.Error != nil {
+		return users, res.Error
+	}
+
+	return users, nil
 }
 
 func GetUser(s string) (user User, err error) {
